@@ -1,209 +1,258 @@
-import React, { useState } from 'react';
-import { Search, Filter, Eye, CheckCircle2, AlertTriangle, XCircle, ChevronRight, Edit2, Tag } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import {
+  Search, Filter, Eye, CheckCircle2, AlertTriangle, XCircle,
+  ChevronRight, Edit2, Tag, ArrowUpDown, Copy, Package, Zap
+} from 'lucide-react';
+
+const STATUS_FILTERS = [
+  { id: 'all', label: 'All', color: 'text-slate-300' },
+  { id: 'VALID', label: 'Valid', color: 'text-emerald-400' },
+  { id: 'WARNING', label: 'Warning', color: 'text-amber-400' },
+  { id: 'CRITICAL_ERROR', label: 'Critical', color: 'text-rose-400' },
+];
 
 export default function ProductTable({ records = [], onSelectRecord, onUpdateRecord }) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('id');
+  const [sortDir, setSortDir] = useState('asc');
+  const [copiedId, setCopiedId] = useState(null);
 
-  // Filter records
-  const filtered = records.filter(rec => {
-    const matchesSearch = 
-      (rec.Product_Title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (rec.MPN || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (rec.Brand_Name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (rec.UNSPSC_Code || '').toLowerCase().includes(searchTerm.toLowerCase());
-    
-    if (statusFilter === 'ALL') return matchesSearch;
-    return matchesSearch && rec.Validation_Status === statusFilter;
-  });
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(col); setSortDir('asc'); }
+  };
+
+  const filtered = useMemo(() => {
+    let result = [...records];
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      result = result.filter(r => r.Validation_Status === statusFilter);
+    }
+
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(r =>
+        r.Product_ID?.toLowerCase().includes(q) ||
+        r.MPN?.toLowerCase().includes(q) ||
+        r.Brand_Name?.toLowerCase().includes(q) ||
+        r.Product_Title?.toLowerCase().includes(q) ||
+        r.UNSPSC_Code?.includes(q)
+      );
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      let av, bv;
+      if (sortBy === 'id') { av = a.Product_ID; bv = b.Product_ID; }
+      else if (sortBy === 'brand') { av = a.Brand_Name; bv = b.Brand_Name; }
+      else if (sortBy === 'score') { av = a._qualityScore || 0; bv = b._qualityScore || 0; }
+      else if (sortBy === 'unspsc') { av = a.UNSPSC_Code; bv = b.UNSPSC_Code; }
+      else { av = a.Product_ID; bv = b.Product_ID; }
+
+      if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+      return sortDir === 'asc' ? av - bv : bv - av;
+    });
+
+    return result;
+  }, [records, searchQuery, statusFilter, sortBy, sortDir]);
+
+  const handleCopyMPN = (mpn, id) => {
+    navigator.clipboard.writeText(mpn);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1200);
+  };
 
   return (
-    <div className="glass-panel rounded-2xl border border-slate-800 shadow-2xl overflow-hidden">
+    <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
       
-      {/* Table Action Bar */}
-      <div className="p-4 border-b border-slate-800/80 bg-slate-900/60 flex flex-col sm:flex-row items-center justify-between gap-4">
-        
-        {/* Search Input */}
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+      {/* Toolbar */}
+      <div className="px-5 py-3 border-b border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+
+        {/* Search */}
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
           <input
             type="text"
-            placeholder="Search by Title, MPN, Brand, UNSPSC..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
+            placeholder="Search by SKU, MPN, brand, title, UNSPSC..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="input-field !pl-10 text-xs"
           />
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex items-center space-x-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-          <button
-            onClick={() => setStatusFilter('ALL')}
-            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-              statusFilter === 'ALL'
-                ? 'bg-slate-800 text-white border border-slate-700'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            All ({records.length})
-          </button>
-          
-          <button
-            onClick={() => setStatusFilter('VALID')}
-            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 ${
-              statusFilter === 'VALID'
-                ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800'
-                : 'text-slate-400 hover:text-emerald-400'
-            }`}
-          >
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Valid ({records.filter(r => r.Validation_Status === 'VALID').length})
-          </button>
-
-          <button
-            onClick={() => setStatusFilter('WARNING')}
-            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 ${
-              statusFilter === 'WARNING'
-                ? 'bg-amber-950/80 text-amber-400 border border-amber-800'
-                : 'text-slate-400 hover:text-amber-400'
-            }`}
-          >
-            <AlertTriangle className="h-3.5 w-3.5" />
-            Warnings ({records.filter(r => r.Validation_Status === 'WARNING').length})
-          </button>
+        {/* Status Filters */}
+        <div className="flex items-center gap-1.5">
+          {STATUS_FILTERS.map(f => {
+            const count = f.id === 'all'
+              ? records.length
+              : records.filter(r => r.Validation_Status === f.id).length;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setStatusFilter(f.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                  statusFilter === f.id
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 bg-slate-900/50 border border-slate-800 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <span>{f.label}</span>
+                <span className="font-mono text-[10px] opacity-70">{count}</span>
+              </button>
+            );
+          })}
         </div>
-
       </div>
 
-      {/* Table Body */}
+      {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+        <table className="data-table">
           <thead>
-            <tr className="border-b border-slate-800 bg-slate-950/50 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              <th className="py-3 px-4">Product / MPN</th>
-              <th className="py-3 px-4">Standardized E-Commerce Title</th>
-              <th className="py-3 px-4">Taxonomy & UNSPSC</th>
-              <th className="py-3 px-4">Extracted Specifications</th>
-              <th className="py-3 px-4">Quality & Status</th>
-              <th className="py-3 px-4 text-right">AI Audit Action</th>
+            <tr>
+              <th className="w-10">#</th>
+              <th>
+                <button onClick={() => toggleSort('id')} className="flex items-center gap-1 hover:text-white transition-colors">
+                  SKU ID <ArrowUpDown className="h-3 w-3" />
+                </button>
+              </th>
+              <th>MPN</th>
+              <th>
+                <button onClick={() => toggleSort('brand')} className="flex items-center gap-1 hover:text-white transition-colors">
+                  Brand <ArrowUpDown className="h-3 w-3" />
+                </button>
+              </th>
+              <th className="min-w-[240px]">Product Title</th>
+              <th>
+                <button onClick={() => toggleSort('unspsc')} className="flex items-center gap-1 hover:text-white transition-colors">
+                  UNSPSC <ArrowUpDown className="h-3 w-3" />
+                </button>
+              </th>
+              <th>Specs</th>
+              <th>
+                <button onClick={() => toggleSort('score')} className="flex items-center gap-1 hover:text-white transition-colors">
+                  Score <ArrowUpDown className="h-3 w-3" />
+                </button>
+              </th>
+              <th>Status</th>
+              <th className="text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60 text-xs">
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="py-8 text-center text-slate-400">
-                  No product records match the filter criteria.
-                </td>
-              </tr>
-            ) : (
-              filtered.map((record, idx) => {
-                const score = parseInt(record.Confidence_Score) || 90;
-                
-                return (
-                  <tr 
-                    key={record.Product_ID || idx}
-                    className="hover:bg-slate-900/60 transition-colors group"
-                  >
-                    {/* Column 1: ID & MPN */}
-                    <td className="py-3.5 px-4">
-                      <div className="font-mono text-[11px] font-bold text-blue-400">
-                        {record.Product_ID}
-                      </div>
-                      <div className="text-slate-300 font-semibold mt-0.5">
-                        {record.Brand_Name}
-                      </div>
-                      <div className="text-[11px] text-slate-500 font-mono">
-                        {record.MPN}
-                      </div>
-                    </td>
+          <tbody>
+            {filtered.map((rec, idx) => {
+              const score = rec._qualityScore || 90;
+              const scoreColor = score >= 90 ? '#10b981' : score >= 75 ? '#f59e0b' : '#f43f5e';
+              const specs = rec._extractedSpecsObj || {};
+              const specEntries = Object.entries(specs).slice(0, 3);
 
-                    {/* Column 2: Standardized Title */}
-                    <td className="py-3.5 px-4 max-w-xs">
-                      <div className="font-medium text-slate-100 group-hover:text-blue-300 transition-colors line-clamp-2">
-                        {record.Product_Title}
-                      </div>
-                      <div className="text-[11px] text-slate-400 mt-1 line-clamp-1 italic">
-                        Raw: {record._raw?.raw_input}
-                      </div>
-                    </td>
+              return (
+                <tr key={rec.Product_ID} className="group">
+                  <td className="text-slate-600 font-mono text-[11px]">{idx + 1}</td>
 
-                    {/* Column 3: Category & UNSPSC */}
-                    <td className="py-3.5 px-4">
-                      <div className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-purple-950/80 border border-purple-800/60 text-purple-300 font-mono text-[11px]">
-                        <Tag className="h-3 w-3" />
-                        <span>UNSPSC {record.UNSPSC_Code}</span>
-                      </div>
-                      <div className="text-[11px] text-slate-400 mt-1 max-w-[180px] truncate">
-                        {record.Category_Path}
-                      </div>
-                    </td>
+                  <td>
+                    <span className="font-mono text-xs font-bold text-indigo-400">{rec.Product_ID}</span>
+                  </td>
 
-                    {/* Column 4: Specs */}
-                    <td className="py-3.5 px-4 max-w-xs">
-                      <div className="text-[11px] font-mono text-slate-300 line-clamp-2 bg-slate-950/60 p-2 rounded-lg border border-slate-800/80">
-                        {record.Primary_Specifications}
-                      </div>
-                      {record._conversions && record._conversions.length > 0 && (
-                        <div className="text-[10px] text-amber-400 font-mono mt-1">
-                          ⚡ Normalizations: {record._conversions.map(c => `${c.imperial} → ${c.metric}`).join(', ')}
-                        </div>
+                  <td>
+                    <button
+                      onClick={() => handleCopyMPN(rec.MPN, rec.Product_ID)}
+                      className="font-mono text-xs text-slate-300 hover:text-white bg-slate-900 px-2 py-0.5 rounded border border-slate-800 hover:border-slate-700 transition-all flex items-center gap-1"
+                    >
+                      {copiedId === rec.Product_ID ? (
+                        <><CheckCircle2 className="h-3 w-3 text-emerald-400" /> Copied</>
+                      ) : (
+                        <><Copy className="h-3 w-3 text-slate-500" /> {rec.MPN}</>
                       )}
-                    </td>
+                    </button>
+                  </td>
 
-                    {/* Column 5: Status & Score */}
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center space-x-2">
-                        {record.Validation_Status === 'VALID' && (
-                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-800 text-emerald-400 font-semibold text-[11px]">
-                            <CheckCircle2 className="h-3 w-3" />
-                            <span>Valid</span>
-                          </span>
-                        )}
-                        {record.Validation_Status === 'WARNING' && (
-                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-950 border border-amber-800 text-amber-400 font-semibold text-[11px]">
-                            <AlertTriangle className="h-3 w-3" />
-                            <span>Warning</span>
-                          </span>
-                        )}
-                        {record.Validation_Status === 'CRITICAL_ERROR' && (
-                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-rose-950 border border-rose-800 text-rose-400 font-semibold text-[11px]">
-                            <XCircle className="h-3 w-3" />
-                            <span>Error</span>
-                          </span>
-                        )}
-                        <span className="font-mono text-xs text-slate-300 font-medium">
-                          {score}%
+                  <td>
+                    <span className="text-xs text-slate-300 font-medium">{rec.Brand_Name}</span>
+                  </td>
+
+                  <td>
+                    <p className="text-xs text-slate-200 line-clamp-2 leading-relaxed max-w-[280px]">
+                      {rec.Product_Title}
+                    </p>
+                  </td>
+
+                  <td>
+                    <div className="flex items-center gap-1.5">
+                      <Tag className="h-3 w-3 text-violet-400 shrink-0" />
+                      <span className="font-mono text-[11px] text-violet-300 font-bold">{rec.UNSPSC_Code}</span>
+                    </div>
+                  </td>
+
+                  <td>
+                    <div className="flex flex-wrap gap-1">
+                      {specEntries.map(([k, v], i) => (
+                        <span key={i} className="px-1.5 py-0.5 bg-slate-900 text-[10px] text-slate-400 rounded border border-slate-800 font-mono truncate max-w-[100px]" title={`${k}: ${v}`}>
+                          {v}
                         </span>
-                      </div>
-                      <div className="w-24 bg-slate-800 rounded-full h-1.5 mt-2 overflow-hidden">
-                        <div 
-                          className={`h-1.5 rounded-full ${
-                            score >= 90 ? 'bg-emerald-500' : score >= 75 ? 'bg-amber-500' : 'bg-rose-500'
-                          }`}
-                          style={{ width: `${score}%` }}
-                        />
-                      </div>
-                    </td>
+                      ))}
+                      {Object.keys(specs).length > 3 && (
+                        <span className="px-1.5 py-0.5 text-[10px] text-slate-500">+{Object.keys(specs).length - 3}</span>
+                      )}
+                    </div>
+                  </td>
 
-                    {/* Column 6: Action Button */}
-                    <td className="py-3.5 px-4 text-right">
-                      <button
-                        onClick={() => onSelectRecord(record)}
-                        className="inline-flex items-center space-x-1 px-3 py-1.5 bg-blue-950/80 hover:bg-blue-900 border border-blue-800/80 text-blue-300 rounded-xl text-xs font-medium transition-all"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        <span>Audit AI</span>
-                        <ChevronRight className="h-3 w-3" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
+                  <td>
+                    <div className="flex items-center gap-2">
+                      <div className="w-12 h-1.5 rounded-full overflow-hidden bg-slate-900">
+                        <div className="h-full rounded-full" style={{
+                          width: `${score}%`, background: scoreColor,
+                          boxShadow: `0 0 6px ${scoreColor}40`
+                        }} />
+                      </div>
+                      <span className="font-mono text-[11px] font-bold" style={{ color: scoreColor }}>
+                        {score}%
+                      </span>
+                    </div>
+                  </td>
+
+                  <td>
+                    {rec.Validation_Status === 'VALID' ? (
+                      <span className="badge badge-emerald flex items-center gap-1 w-fit text-[10px]">
+                        <CheckCircle2 className="h-3 w-3" /> Valid
+                      </span>
+                    ) : rec.Validation_Status === 'WARNING' ? (
+                      <span className="badge badge-amber flex items-center gap-1 w-fit text-[10px]">
+                        <AlertTriangle className="h-3 w-3" /> Warn
+                      </span>
+                    ) : (
+                      <span className="badge badge-rose flex items-center gap-1 w-fit text-[10px]">
+                        <XCircle className="h-3 w-3" /> Error
+                      </span>
+                    )}
+                  </td>
+
+                  <td className="text-right">
+                    <button
+                      onClick={() => onSelectRecord(rec)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-300 bg-indigo-600/10 hover:bg-indigo-600 hover:text-white border border-indigo-500/20 hover:border-indigo-500 transition-all flex items-center gap-1 ml-auto opacity-60 group-hover:opacity-100"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      <span>Inspect</span>
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
+      {/* Footer */}
+      <div className="px-5 py-3 border-t border-slate-800/80 flex items-center justify-between">
+        <span className="text-[11px] text-slate-500">
+          Showing {filtered.length} of {records.length} products
+        </span>
+        <span className="text-[10px] text-slate-600 font-mono">
+          ProductLens AI • Catalog Studio v2.0
+        </span>
+      </div>
     </div>
   );
 }

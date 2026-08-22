@@ -1,219 +1,285 @@
 import React, { useState } from 'react';
-import { X, Sparkles, ShieldCheck, FileText, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, Copy, Check } from 'lucide-react';
+import {
+  X, Brain, CheckCircle2, AlertTriangle, Copy, ArrowRight,
+  Zap, ShieldCheck, Tag, RefreshCw, FileText, Edit3,
+  Save, ExternalLink, Package, Sparkles
+} from 'lucide-react';
 
 export default function ExplainabilityModal({ record, onClose, onSaveRecord }) {
-  const [copied, setCopied] = useState(false);
-  const [editedTitle, setEditedTitle] = useState(record.Product_Title || '');
-  const [editedUnspsc, setEditedUnspsc] = useState(record.UNSPSC_Code || '');
-
-  if (!record) return null;
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(record.Product_Title);
+  const [editShortDesc, setEditShortDesc] = useState(record.Short_Description);
+  const [copied, setCopied] = useState(null);
 
   const score = parseInt(record.Confidence_Score) || 90;
-  const rawInput = record._raw?.raw_input || '';
   const conversions = record._conversions || [];
-
-  const handleCopyAudit = () => {
-    navigator.clipboard.writeText(record.AI_Reasoning_Audit || '');
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const specs = record._extractedSpecsObj || {};
+  const taxon = record._taxonDetails || {};
 
   const handleSave = () => {
     onSaveRecord({
       ...record,
-      Product_Title: editedTitle,
-      UNSPSC_Code: editedUnspsc
+      Product_Title: editTitle,
+      Short_Description: editShortDesc,
     });
-    onClose();
+    setIsEditing(false);
   };
 
+  const handleCopy = (text, id) => {
+    navigator.clipboard.writeText(text);
+    setCopied(id);
+    setTimeout(() => setCopied(null), 1500);
+  };
+
+  const scoreColor = score >= 90 ? '#10b981' : score >= 75 ? '#f59e0b' : '#f43f5e';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-4xl glass-panel rounded-3xl border border-slate-700 shadow-2xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-200">
-        
-        {/* Modal Header */}
-        <div className="p-6 border-b border-slate-800 bg-slate-900/80 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              <Sparkles className="h-6 w-6" />
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-content max-w-3xl p-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 z-10 px-6 py-4 border-b border-slate-800 bg-[#0d1220]/95 backdrop-blur-xl flex items-center justify-between rounded-t-2xl">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl flex items-center justify-center" style={{ background: `${scoreColor}15`, border: `1px solid ${scoreColor}30` }}>
+              <Brain className="h-5 w-5" style={{ color: scoreColor }} />
             </div>
             <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="font-heading text-lg font-bold text-white">
-                  AI Explainability & Audit Inspection
-                </h3>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-blue-950 border border-blue-800 text-blue-300">
-                  ID: {record.Product_ID}
-                </span>
-              </div>
-              <p className="text-xs text-slate-400">
-                Transparent verification of LLM extractions, source citations, and unit normalization rules.
+              <h2 className="font-heading font-bold text-base text-white">
+                AI Explainability & Audit Inspector
+              </h2>
+              <p className="text-[11px] text-slate-400">
+                {record.Product_ID} • {record.MPN} • {record.Brand_Name}
               </p>
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {isEditing ? (
+              <button onClick={handleSave} className="btn-primary text-xs !py-1.5 !px-3 flex items-center gap-1">
+                <Save className="h-3.5 w-3.5" />
+                <span>Save</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="btn-ghost text-xs !py-1.5 !px-3 flex items-center gap-1"
+              >
+                <Edit3 className="h-3.5 w-3.5" />
+                <span>Edit</span>
+              </button>
+            )}
+            <button onClick={onClose} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
-          
-          {/* Top Score Banner */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="glass-card p-4 rounded-2xl border border-slate-800">
-              <span className="text-xs text-slate-400 font-medium">Overall AI Confidence</span>
-              <div className="flex items-center space-x-2 mt-1">
-                <span className="font-heading font-extrabold text-2xl text-emerald-400">{score}%</span>
-                <span className="text-xs text-emerald-400 font-medium px-2 py-0.5 bg-emerald-950 rounded-full border border-emerald-800">
-                  Verified Accurate
+        {/* Content */}
+        <div className="p-6 space-y-6">
+
+          {/* Score & Status Bar */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border" style={{ background: `${scoreColor}08`, borderColor: `${scoreColor}30` }}>
+              <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: `${scoreColor}20` }}>
+                <span className="font-heading font-extrabold text-sm" style={{ color: scoreColor }}>
+                  {score}
                 </span>
               </div>
-            </div>
-
-            <div className="glass-card p-4 rounded-2xl border border-slate-800">
-              <span className="text-xs text-slate-400 font-medium">Validation Status</span>
-              <div className="mt-1 flex items-center space-x-2">
-                <span className="font-heading font-bold text-lg text-white">{record.Validation_Status}</span>
-                <ShieldCheck className="h-5 w-5 text-emerald-400" />
+              <div>
+                <span className="text-[10px] text-slate-400 block">Confidence</span>
+                <span className="text-xs font-bold text-white">{score >= 90 ? 'High' : score >= 75 ? 'Medium' : 'Low'}</span>
               </div>
             </div>
 
-            <div className="glass-card p-4 rounded-2xl border border-slate-800">
-              <span className="text-xs text-slate-400 font-medium">Source Document</span>
-              <div className="mt-1 flex items-center space-x-2 text-xs font-mono text-blue-300 truncate">
-                <FileText className="h-4 w-4 text-blue-400 shrink-0" />
-                <span className="truncate">{record.Source_Reference}</span>
+            <span className={`badge flex items-center gap-1 ${
+              record.Validation_Status === 'VALID' ? 'badge-emerald' : record.Validation_Status === 'WARNING' ? 'badge-amber' : 'badge-rose'
+            }`}>
+              {record.Validation_Status === 'VALID' ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+              {record.Validation_Status}
+            </span>
+
+            <span className="badge badge-purple flex items-center gap-1">
+              <Tag className="h-3 w-3" />
+              UNSPSC {record.UNSPSC_Code}
+            </span>
+
+            <span className="badge badge-blue flex items-center gap-1">
+              <Package className="h-3 w-3" />
+              {record.Brand_Name}
+            </span>
+          </div>
+
+          {/* Product Title (Editable) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Generated Product Title</label>
+              <button
+                onClick={() => handleCopy(record.Product_Title, 'title')}
+                className="text-[10px] text-slate-500 hover:text-indigo-400 flex items-center gap-1 transition-colors"
+              >
+                <Copy className="h-3 w-3" />
+                {copied === 'title' ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+            {isEditing ? (
+              <textarea
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="input-field text-sm"
+                rows={2}
+              />
+            ) : (
+              <p className="text-sm text-white leading-relaxed bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                {record.Product_Title}
+              </p>
+            )}
+          </div>
+
+          {/* Short Description (Editable) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Short Description</label>
+              <button
+                onClick={() => handleCopy(record.Short_Description, 'short')}
+                className="text-[10px] text-slate-500 hover:text-indigo-400 flex items-center gap-1 transition-colors"
+              >
+                <Copy className="h-3 w-3" />
+                {copied === 'short' ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+            {isEditing ? (
+              <textarea
+                value={editShortDesc}
+                onChange={(e) => setEditShortDesc(e.target.value)}
+                className="input-field text-xs"
+                rows={3}
+              />
+            ) : (
+              <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                {record.Short_Description}
+              </p>
+            )}
+          </div>
+
+          {/* UNSPSC Taxonomy Path */}
+          <div className="glass-card p-4 rounded-xl border border-slate-800">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-3">
+              <Tag className="h-3.5 w-3.5 text-violet-400" />
+              UNSPSC v25.0 Taxonomy Classification
+            </label>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-400 w-20 shrink-0">Segment</span>
+                <span className="text-violet-300 font-mono">{taxon.segment || 'N/A'}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-400 w-20 shrink-0">Family</span>
+                <span className="text-violet-300 font-mono">{taxon.family || 'N/A'}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-400 w-20 shrink-0">Class</span>
+                <span className="text-violet-300 font-mono">{taxon.class || 'N/A'}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-400 w-20 shrink-0">Commodity</span>
+                <span className="text-white font-mono font-bold">{taxon.code} — {taxon.title}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs mt-1">
+                <span className="text-slate-400 w-20 shrink-0">Full Path</span>
+                <span className="text-slate-300">{record.Category_Path}</span>
               </div>
             </div>
           </div>
 
-          {/* Raw Input vs Enriched Output Comparison */}
-          <div className="glass-card p-5 rounded-2xl border border-slate-800 space-y-4">
-            <h4 className="font-heading text-xs uppercase tracking-wider text-slate-400 font-bold flex items-center gap-2">
-              <RefreshCw className="h-4 w-4 text-blue-400" />
-              Ingestion Transformation Pipeline
-            </h4>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Raw Raw Data */}
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/80">
-                <span className="text-[11px] font-semibold text-amber-400 uppercase tracking-wider block mb-2">
-                  Original Raw Input Data
-                </span>
-                <p className="text-xs font-mono text-slate-300 leading-relaxed bg-slate-900/60 p-3 rounded-lg border border-slate-800">
-                  "{rawInput}"
-                </p>
-                <div className="mt-3 text-[11px] text-slate-500">
-                  Brand: <span className="text-slate-300">{record.Brand_Name}</span> | MPN: <span className="text-slate-300">{record.MPN}</span>
+          {/* Extracted Specifications */}
+          <div>
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-3">
+              <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+              AI-Extracted Product Attributes
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(specs).map(([key, value], i) => (
+                <div key={i} className="flex items-center justify-between p-3 bg-slate-950/50 rounded-xl border border-slate-800 text-xs">
+                  <span className="text-slate-400 font-medium">{key}</span>
+                  <span className="text-white font-mono font-bold">{value}</span>
                 </div>
-              </div>
-
-              {/* Enriched E-Commerce Output */}
-              <div className="bg-slate-950 p-4 rounded-xl border border-blue-900/40">
-                <span className="text-[11px] font-semibold text-blue-400 uppercase tracking-wider block mb-2">
-                  Enriched E-Commerce Output (Editable)
-                </span>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-[10px] text-slate-400 uppercase font-semibold">Product Title</label>
-                    <input
-                      type="text"
-                      value={editedTitle}
-                      onChange={(e) => setEditedTitle(e.target.value)}
-                      className="w-full mt-1 px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-medium text-white focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] text-slate-400 uppercase font-semibold">UNSPSC Code & Taxonomy</label>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <input
-                        type="text"
-                        value={editedUnspsc}
-                        onChange={(e) => setEditedUnspsc(e.target.value)}
-                        className="w-32 px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-purple-300 focus:outline-none focus:border-purple-500"
-                      />
-                      <span className="text-xs text-slate-400 truncate">{record.Category_Path}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
-          {/* Unit Normalization Engine Audit */}
+          {/* Unit Conversions */}
           {conversions.length > 0 && (
-            <div className="glass-card p-5 rounded-2xl border border-slate-800">
-              <h4 className="font-heading text-xs uppercase tracking-wider text-slate-400 font-bold mb-3 flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                Applied Physics & Unit Conversions
-              </h4>
+            <div>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-3">
+                <RefreshCw className="h-3.5 w-3.5 text-amber-400" />
+                Physics Unit Normalizations ({conversions.length})
+              </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {conversions.map((conv, idx) => (
-                  <div key={idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
-                    <div>
-                      <span className="text-[11px] text-slate-400 block">{conv.field}</span>
-                      <span className="text-xs font-mono text-amber-400">{conv.imperial}</span>
+                {conversions.map((c, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 bg-amber-950/20 rounded-xl border border-amber-800/30">
+                    <div className="text-center flex-1">
+                      <span className="text-[10px] text-slate-500 block">Imperial</span>
+                      <span className="text-sm font-mono font-bold text-amber-300">{c.imperial}</span>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-slate-600" />
-                    <div className="text-right">
-                      <span className="text-[11px] text-slate-400 block">Metric Standard</span>
-                      <span className="text-xs font-mono text-emerald-400 font-bold">{conv.metric}</span>
+                    <ArrowRight className="h-4 w-4 text-slate-600 shrink-0" />
+                    <div className="text-center flex-1">
+                      <span className="text-[10px] text-slate-500 block">Metric SI</span>
+                      <span className="text-sm font-mono font-bold text-cyan-300">{c.metric}</span>
                     </div>
+                    <span className="badge badge-amber text-[9px] shrink-0">{c.type}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* LLM Reasoning Chain Log */}
-          <div className="glass-card p-5 rounded-2xl border border-slate-800">
+          {/* Validation Flags */}
+          <div>
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-3">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+              Validation Audit Flags
+            </label>
+            <div className="space-y-1.5">
+              {record.Validation_Flags.split(' ; ').filter(Boolean).map((flag, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs p-2 bg-slate-950/50 rounded-lg border border-slate-800">
+                  <span className="text-slate-300">{flag}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* XAI Reasoning Log */}
+          <div>
             <div className="flex items-center justify-between mb-3">
-              <h4 className="font-heading text-xs uppercase tracking-wider text-slate-400 font-bold flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-purple-400" />
-                Reasoning Audit Log & Citation Trace
-              </h4>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Brain className="h-3.5 w-3.5 text-indigo-400" />
+                Explainable AI (XAI) Reasoning Audit Log
+              </label>
               <button
-                onClick={handleCopyAudit}
-                className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
+                onClick={() => handleCopy(record.AI_Reasoning_Audit, 'audit')}
+                className="text-[10px] text-slate-500 hover:text-indigo-400 flex items-center gap-1 transition-colors"
               >
-                {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                <span>{copied ? 'Copied' : 'Copy Log'}</span>
+                <Copy className="h-3 w-3" />
+                {copied === 'audit' ? 'Copied!' : 'Copy'}
               </button>
             </div>
-            <pre className="bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">
+            <pre className="text-[11px] text-slate-300 bg-slate-950/70 p-4 rounded-xl border border-slate-800 overflow-x-auto font-mono leading-relaxed whitespace-pre-wrap">
               {record.AI_Reasoning_Audit}
             </pre>
           </div>
 
-        </div>
-
-        {/* Modal Footer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-900/90 flex items-center justify-between">
-          <span className="text-xs text-slate-400">
-            Field updates will instantly recalculate static headers and export sheets.
-          </span>
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-xl transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-xl shadow-lg shadow-blue-600/30 transition-all"
-            >
-              Save & Re-Validate
-            </button>
+          {/* Source Reference */}
+          <div className="flex items-center justify-between p-3 bg-slate-950/40 rounded-xl border border-slate-800 text-xs">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-slate-500" />
+              <span className="text-slate-400">Source:</span>
+              <span className="text-slate-300 font-medium">{record.Source_Reference}</span>
+            </div>
+            <span className="font-mono text-slate-500">{record.Product_ID}</span>
           </div>
         </div>
-
       </div>
     </div>
   );
