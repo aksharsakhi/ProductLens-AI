@@ -16,6 +16,7 @@ import { resolveAllSynonyms } from './synonymResolver.js';
 import { extractSpecifications } from './specExtractor.js';
 import { generateStandardTitle, generateShortDescription, generateLongDescription } from './titleStandardizer.js';
 import { validateProductRecord } from './qualityValidator.js';
+import { isGeminiEnabled, aiEnrichProduct } from './geminiService.js';
 
 // ═══════════════════════════════════════════════════════
 // UNSPSC v25.0 Taxonomy Database (50+ Commodity Classes)
@@ -381,14 +382,35 @@ function generateAuditLog({ item, synonymsResolved, specDetails, taxonResult, co
 // MASTER ENRICHMENT FUNCTION
 // ═══════════════════════════════════════════════
 
-export function enrichProductItem(item, customRules = []) {
+export async function enrichProductItem(item, customRules = []) {
   const text = (item.raw_input || '').trim();
+
+  // ── AI Engine Switch ──
+  const useGemini = isGeminiEnabled();
+  let aiData = null;
+
+  if (useGemini) {
+    aiData = await aiEnrichProduct(item);
+  }
 
   // ── Stage 1: Synonym Resolution ──
   const synonymsResolved = resolveAllSynonyms(text);
 
   // ── Stage 2: NLP Spec Extraction ──
-  const { specs: extractedSpecs, details: specDetails } = extractSpecifications(text);
+  // Use Gemini specs if available, otherwise heuristic
+  let extractedSpecs = {};
+  let specDetails = [];
+  
+  if (aiData?.specs) {
+    extractedSpecs = aiData.specs;
+    specDetails = Object.entries(aiData.specs).map(([k, v]) => ({
+      field: k, value: v, raw: 'GEMINI_AI', confidence: 95, method: 'LLM_EXTRACTION'
+    }));
+  } else {
+    const ext = extractSpecifications(text);
+    extractedSpecs = ext.specs;
+    specDetails = ext.details;
+  }
 
   // Apply custom user rules
   const textLower = text.toLowerCase();
@@ -406,14 +428,23 @@ export function enrichProductItem(item, customRules = []) {
   });
 
   // ── Stage 3: UNSPSC Classification ──
-  const taxonResult = classifyUNSPSC(text);
+  let taxonResult = null;
+  if (aiData?.taxonomy) {
+    taxonResult = {
+      taxon: aiData.taxonomy,
+      confidence: aiData.taxonomy.confidence || 90,
+      matchKey: 'GEMINI_AI'
+    };
+  } else {
+    taxonResult = classifyUNSPSC(text);
+  }
   const taxon = taxonResult.taxon;
 
   // ── Stage 4: Physics Unit Normalization ──
   const conversions = normalizePhysicsUnits(text);
 
   // ── Stage 5: Title & Description Generation ──
-  const productTitle = generateStandardTitle({
+  const productTitle = aiData?.title || generateStandardTitle({
     brand: item.brand,
     mpn: item.mpn,
     productType: taxon.title,
@@ -421,7 +452,7 @@ export function enrichProductItem(item, customRules = []) {
     rawInput: text,
   });
 
-  const shortDescription = generateShortDescription({
+  const shortDescription = aiData?.descriptions?.short_description || generateShortDescription({
     brand: item.brand,
     mpn: item.mpn,
     productType: taxon.title,
@@ -429,7 +460,7 @@ export function enrichProductItem(item, customRules = []) {
     taxon,
   });
 
-  const longDescription = generateLongDescription({
+  const longDescription = aiData?.descriptions?.long_description || generateLongDescription({
     brand: item.brand,
     mpn: item.mpn,
     productType: taxon.title,
@@ -458,6 +489,7 @@ export function enrichProductItem(item, customRules = []) {
     _extractedSpecsObj: extractedSpecs,
     _specDetails: specDetails,
     _synonymsResolved: synonymsResolved,
+    _isGemini: useGemini && aiData !== null
   };
 
   // ── Stage 6: Quality Validation ──
@@ -466,7 +498,7 @@ export function enrichProductItem(item, customRules = []) {
   // Generate XAI audit log
   const auditLog = generateAuditLog({
     item, synonymsResolved, specDetails, taxonResult, conversions, validation
-  });
+  }) + (useGemini ? '\n\n[Powered by Google Gemini 2.0 Flash]' : '\n\n[Powered by ProductLens Heuristic Engine]');
 
   return {
     ...preValidationRecord,
@@ -479,6 +511,11 @@ export function enrichProductItem(item, customRules = []) {
   };
 }
 
-export function processBatchCatalog(items, customRules = []) {
-  return items.map(item => enrichProductItem(item, customRules));
+export async function processBatchCatalog(items, customRules = []) {
+  // Process sequentially to respect Gemini API rate limits
+  const results = [];
+  for (const item of items) {
+    results.push(await enrichProductItem(item, customRules));
+  }
+  return results;
 }

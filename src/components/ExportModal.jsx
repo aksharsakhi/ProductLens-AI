@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, FileSpreadsheet, Download, Check, Sparkles, Table } from 'lucide-react';
+import { X, FileSpreadsheet, Download, Check, Sparkles, Table, FileText } from 'lucide-react';
 import { EXPECTED_STATIC_HEADERS, exportToExcel, exportToCSV } from '../services/excelExporter';
+import { exportToPDF } from '../services/pdfExporter';
 import confetti from 'canvas-confetti';
 
 export default function ExportModal({ records = [], onClose }) {
@@ -10,8 +11,10 @@ export default function ExportModal({ records = [], onClose }) {
   const handleExport = () => {
     if (format === 'xlsx') {
       exportToExcel(records, `ProductLens_UniHack_Enriched_Catalog_${Date.now()}.xlsx`);
-    } else {
+    } else if (format === 'csv') {
       exportToCSV(records, `ProductLens_UniHack_Enriched_Catalog_${Date.now()}.csv`);
+    } else if (format === 'pdf') {
+      exportToPDF(records, `ProductLens_UniHack_Enriched_Catalog_${Date.now()}.pdf`);
     }
 
     setDownloaded(true);
@@ -65,39 +68,52 @@ export default function ExportModal({ records = [], onClose }) {
         <div className="p-6 space-y-6">
           
           {/* Format selection */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-              Select Output Format
+          <div className="space-y-4">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+              Select File Format
             </label>
-            <div className="grid grid-cols-2 gap-4">
+            
+            <div className="grid grid-cols-3 gap-3">
               <button
                 onClick={() => setFormat('xlsx')}
-                className={`p-4 rounded-2xl border text-left transition-all ${
-                  format === 'xlsx'
-                    ? 'bg-blue-950/60 border-blue-500 shadow-lg shadow-blue-500/20'
-                    : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-semibold transition-all ${
+                  format === 'xlsx' 
+                    ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20' 
+                    : 'bg-slate-900/50 border-slate-700 text-slate-300 hover:border-blue-500 hover:text-white hover:bg-blue-950/30'
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-heading font-bold text-sm text-white">Excel Sheet (.xlsx)</span>
-                  <FileSpreadsheet className="h-5 w-5 text-emerald-400" />
+                <div className={`p-1.5 rounded-lg ${format === 'xlsx' ? 'bg-blue-500/20' : 'bg-slate-800'}`}>
+                  <Table className="h-4 w-4" />
                 </div>
-                <p className="text-xs text-slate-400 mt-1">Recommended format with cell formatting & column widths</p>
+                XLSX
               </button>
 
               <button
                 onClick={() => setFormat('csv')}
-                className={`p-4 rounded-2xl border text-left transition-all ${
-                  format === 'csv'
-                    ? 'bg-blue-950/60 border-blue-500 shadow-lg shadow-blue-500/20'
-                    : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-semibold transition-all ${
+                  format === 'csv' 
+                    ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20' 
+                    : 'bg-slate-900/50 border-slate-700 text-slate-300 hover:border-blue-500 hover:text-white hover:bg-blue-950/30'
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-heading font-bold text-sm text-white">Comma Separated (.csv)</span>
-                  <Table className="h-5 w-5 text-blue-400" />
+                <div className={`p-1.5 rounded-lg ${format === 'csv' ? 'bg-blue-500/20' : 'bg-slate-800'}`}>
+                  <FileSpreadsheet className="h-4 w-4" />
                 </div>
-                <p className="text-xs text-slate-400 mt-1">Lightweight plain-text table format for ERP/PIM import</p>
+                CSV
+              </button>
+
+              <button
+                onClick={() => setFormat('pdf')}
+                className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-semibold transition-all ${
+                  format === 'pdf' 
+                    ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20' 
+                    : 'bg-slate-900/50 border-slate-700 text-slate-300 hover:border-blue-500 hover:text-white hover:bg-blue-950/30'
+                }`}
+              >
+                <div className={`p-1.5 rounded-lg ${format === 'pdf' ? 'bg-blue-500/20' : 'bg-slate-800'}`}>
+                  <FileText className="h-4 w-4" />
+                </div>
+                PDF
               </button>
             </div>
           </div>

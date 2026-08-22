@@ -10,9 +10,12 @@ import TaxonomyBrowser from './components/TaxonomyBrowser';
 import RuleConfigurator from './components/RuleConfigurator';
 import ExplainabilityModal from './components/ExplainabilityModal';
 import ExportModal from './components/ExportModal';
+import AISettings from './components/AISettings';
+import LoginScreen from './components/LoginScreen';
 
 import { SAMPLE_DATASETS } from './data/sampleDatasets';
 import { processBatchCatalog, enrichProductItem } from './services/aiEnrichmentEngine';
+import { loadRecords, saveRecords, loadRules, saveRules, loadAuth, saveAuth, logoutUser, appendAuditLog } from './services/storageService';
 
 export default function App() {
   const [viewMode, setViewMode] = useState('table');
@@ -21,6 +24,7 @@ export default function App() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [notification, setNotification] = useState(null);
+  const [aiEnabled, setAiEnabled] = useState(false);
   const [customRules, setCustomRules] = useState([
     { id: '1', keyword: 'IP65', targetField: 'Enclosure Rating', targetValue: 'IP65 Weatherproof' },
     { id: '2', keyword: 'NPT', targetField: 'Thread Standard', targetValue: 'ANSI/ASME B1.20.1 NPT' },
@@ -28,74 +32,149 @@ export default function App() {
     { id: '4', keyword: 'Explosion Proof', targetField: 'Hazard Class', targetValue: 'Class 1 Div 1 / ATEX Zone 1' },
   ]);
 
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+
   const showNotification = useCallback((msg, type = 'success') => {
     setNotification({ msg, type });
     setTimeout(() => setNotification(null), 3000);
   }, []);
 
-  // Initialize with all datasets loaded on first render
+  // Initialize from IndexedDB
   useEffect(() => {
-    loadAllDatasets();
+    const initStorage = async () => {
+      const auth = await loadAuth();
+      if (auth) setCurrentUser(auth);
+
+      const savedRecords = await loadRecords();
+      if (savedRecords) setRecords(savedRecords);
+
+      const savedRules = await loadRules();
+      if (savedRules) setCustomRules(savedRules);
+
+      setIsInitializing(false);
+    };
+    initStorage();
   }, []);
 
-  const loadAllDatasets = () => {
-    const allItems = SAMPLE_DATASETS.flatMap(d => d.items);
-    setIsProcessing(true);
-    // Simulate brief processing delay for realism
-    setTimeout(() => {
-      const enriched = processBatchCatalog(allItems, customRules);
-      setRecords(enriched);
-      setIsProcessing(false);
-      showNotification(`${enriched.length} products enriched across ${SAMPLE_DATASETS.length} industrial datasets`);
-    }, 300);
+  const handleLogin = async (user) => {
+    setCurrentUser(user);
+    await saveAuth(user);
+    await appendAuditLog('USER_LOGIN', user.name, 'User authenticated via Unilog SSO');
+    showNotification(`Welcome back, ${user.name} (${user.role})`);
   };
 
-  const loadDataset = (datasetId) => {
+  const handleLogout = async () => {
+    await logoutUser();
+    setCurrentUser(null);
+    showNotification('Logged out successfully');
+  };
+
+  const updateRecordsWithPersistence = async (newRecords) => {
+    setRecords(newRecords);
+    await saveRecords(newRecords);
+  };
+
+  const updateRulesWithPersistence = async (newRules) => {
+    setCustomRules(newRules);
+    await saveRules(newRules);
+  };
+
+  const loadAllDatasets = async () => {
+    const allItems = SAMPLE_DATASETS.flatMap(d => d.items);
+    setIsProcessing(true);
+    try {
+      const enriched = await processBatchCatalog(allItems, customRules);
+      await updateRecordsWithPersistence(enriched);
+      await appendAuditLog('LOAD_ALL_DATASETS', currentUser?.name, `Processed ${enriched.length} items`);
+      showNotification(`${enriched.length} products enriched across ${SAMPLE_DATASETS.length} industrial datasets`);
+    } catch (err) {
+      showNotification(`Enrichment error: ${err.message}`, 'error');
+    }
+    setIsProcessing(false);
+  };
+
+  const loadDataset = async (datasetId) => {
     const found = SAMPLE_DATASETS.find(d => d.id === datasetId);
     if (found) {
       setIsProcessing(true);
-      setTimeout(() => {
-        const enriched = processBatchCatalog(found.items, customRules);
-        setRecords(enriched);
-        setIsProcessing(false);
+      try {
+        const enriched = await processBatchCatalog(found.items, customRules);
+        const combined = [...enriched, ...records];
+        await updateRecordsWithPersistence(combined);
+        await appendAuditLog('LOAD_DATASET', currentUser?.name, `Loaded ${found.name}`);
         showNotification(`Loaded ${enriched.length} products from "${found.name}"`);
-      }, 200);
+      } catch (err) {
+        showNotification(`Enrichment error: ${err.message}`, 'error');
+      }
+      setIsProcessing(false);
     }
   };
 
-  const handleIngestCustomItem = (newItem) => {
-    const enrichedItem = enrichProductItem(newItem, customRules);
-    setRecords(prev => [enrichedItem, ...prev]);
-    showNotification(`Ingested & enriched product "${newItem.raw_id}"`);
+  const handleIngestCustomItem = async (newItem) => {
+    setIsProcessing(true);
+    try {
+      const enrichedItem = await enrichProductItem(newItem, customRules);
+      const updated = [enrichedItem, ...records];
+      await updateRecordsWithPersistence(updated);
+      await appendAuditLog('CUSTOM_INGEST', currentUser?.name, `Ingested ${newItem.raw_id}`);
+      showNotification(`Ingested & enriched product "${newItem.raw_id}"`);
+    } catch (err) {
+      showNotification(`Enrichment error: ${err.message}`, 'error');
+    }
+    setIsProcessing(false);
   };
 
-  const handleUpdateRecord = (updatedRecord) => {
-    setRecords(prev =>
-      prev.map(r => r.Product_ID === updatedRecord.Product_ID ? updatedRecord : r)
-    );
+  const handleUpdateRecord = async (updatedRecord) => {
+    const next = records.map(r => r.Product_ID === updatedRecord.Product_ID ? updatedRecord : r);
+    await updateRecordsWithPersistence(next);
+    await appendAuditLog('UPDATE_RECORD', currentUser?.name, `Updated ${updatedRecord.Product_ID}`);
   };
 
-  const handleAddRule = (newRule) => {
-    setCustomRules(prev => [...prev, newRule]);
+  const handleAddRule = async (newRule) => {
+    const next = [...customRules, newRule];
+    await updateRulesWithPersistence(next);
+    await appendAuditLog('ADD_RULE', currentUser?.name, `Added rule for ${newRule.keyword}`);
     showNotification(`Rule added: IF "${newRule.keyword}" → SET ${newRule.targetField}`);
   };
 
-  const handleDeleteRule = (ruleId) => {
-    setCustomRules(prev => prev.filter(r => r.id !== ruleId));
+  const handleDeleteRule = async (ruleId) => {
+    const next = customRules.filter(r => r.id !== ruleId);
+    await updateRulesWithPersistence(next);
+    await appendAuditLog('DELETE_RULE', currentUser?.name, `Deleted rule ${ruleId}`);
   };
 
-  const handleApplyRules = () => {
+  const handleApplyRules = async () => {
     setIsProcessing(true);
-    setTimeout(() => {
-      setRecords(prev => prev.map(r => enrichProductItem(r._raw, customRules)));
-      setIsProcessing(false);
+    try {
+      const enriched = await Promise.all(records.map(r => enrichProductItem(r._raw, customRules)));
+      await updateRecordsWithPersistence(enriched);
+      await appendAuditLog('APPLY_RULES', currentUser?.name, `Re-enriched catalog with ${customRules.length} rules`);
       showNotification(`Re-enriched ${records.length} products with ${customRules.length} custom rules`);
-    }, 200);
+    } catch (err) {
+      showNotification(`Enrichment error: ${err.message}`, 'error');
+    }
+    setIsProcessing(false);
   };
 
   const avgQualityScore = records.length > 0
     ? Math.round(records.reduce((acc, r) => acc + (r._qualityScore || 90), 0) / records.length)
     : 0;
+
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#050810]">
+        <div className="text-center animate-pulse">
+          <div className="h-12 w-12 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin mx-auto mb-4" />
+          <p className="text-slate-400 font-mono text-sm">Initializing Enterprise Workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#050810] text-slate-100">
@@ -159,16 +238,16 @@ export default function App() {
               </h2>
               <div className="flex items-center gap-3">
                 <button
-                  onClick={loadAllDatasets}
-                  className="btn-ghost text-xs flex items-center gap-1.5"
+                  onClick={() => setShowExportModal(true)}
+                  className="btn-primary text-xs !py-1.5"
                 >
-                  Load All {SAMPLE_DATASETS.reduce((a, d) => a + d.items.length, 0)} Products
+                  Generate Reports
                 </button>
                 <button
-                  onClick={() => setShowExportModal(true)}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 font-medium underline underline-offset-4"
+                  onClick={handleLogout}
+                  className="text-xs text-rose-400 hover:text-rose-300 font-medium ml-2"
                 >
-                  Verify 15 Output Headers
+                  Logout
                 </button>
               </div>
             </div>
@@ -206,6 +285,10 @@ export default function App() {
             onDeleteRule={handleDeleteRule}
             onApplyRules={handleApplyRules}
           />
+        )}
+
+        {viewMode === 'ai-settings' && (
+          <AISettings onAIStatusChange={setAiEnabled} />
         )}
 
       </main>
