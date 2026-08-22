@@ -111,6 +111,20 @@ export default function App() {
     }
   };
 
+  const handleBatchIngest = async (mappedItems) => {
+    setIsProcessing(true);
+    try {
+      const enriched = await processBatchCatalog(mappedItems, customRules);
+      const combined = [...enriched, ...records];
+      await updateRecordsWithPersistence(combined);
+      await appendAuditLog('CSV_UPLOAD', currentUser?.name, `Processed ${mappedItems.length} items from CSV`);
+      showNotification(`Successfully enriched ${mappedItems.length} products from CSV`);
+    } catch (err) {
+      showNotification(`Enrichment error: ${err.message}`, 'error');
+    }
+    setIsProcessing(false);
+  };
+
   const handleIngestCustomItem = async (newItem) => {
     setIsProcessing(true);
     try {
@@ -223,7 +237,7 @@ export default function App() {
         {/* Ingestion Panel (table & cards views) */}
         {(viewMode === 'table' || viewMode === 'cards') && (
           <IngestionPanel
-            onLoadDataset={loadDataset}
+            onBatchIngest={handleBatchIngest}
             onIngestCustomItem={handleIngestCustomItem}
           />
         )}
