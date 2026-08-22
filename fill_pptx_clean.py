@@ -434,7 +434,7 @@ def fill_template():
     links14 = [
         "1. GitHub Public Repository Link:\n   https://github.com/aksharsakhi/ProductLens-AI",
         "2. Demo Video Link (3 Minutes):\n   https://youtu.be/sample_productlens_demo",
-        "3. Working Live Prototype Link:\n   http://localhost:3000"
+        "3. Working Live Prototype Link:\n   https://aksharsakhi.github.io/ProductLens-AI"
     ]
     for l in links14:
         pl = tf14.add_paragraph()
@@ -457,7 +457,8 @@ def fill_template():
 
     prs.save('[EXT] UniHack-Protoype Template .pptx')
     prs.save('presentation_latex/ProductLens_AI_UniHack_Presentation.pptx')
-    print("Clean PPTX template populated successfully!")
+    prs.save('UniHack_Final_Submission/ProductLens_AI_Presentation.pptx')
+    print("Clean PPTX template populated successfully into UniHack_Final_Submission!")
 
 if __name__ == "__main__":
     fill_template()

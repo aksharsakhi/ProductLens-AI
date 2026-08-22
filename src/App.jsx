@@ -12,6 +12,7 @@ import ExplainabilityModal from './components/ExplainabilityModal';
 import ExportModal from './components/ExportModal';
 import AISettings from './components/AISettings';
 import LoginScreen from './components/LoginScreen';
+import WorkerTerminal from './components/WorkerTerminal';
 
 import { SAMPLE_DATASETS } from './data/sampleDatasets';
 import { processBatchCatalog, enrichProductItem } from './services/aiEnrichmentEngine';
@@ -34,6 +35,10 @@ export default function App() {
 
   const [currentUser, setCurrentUser] = useState(null);
   const [isInitializing, setIsInitializing] = useState(true);
+
+  // Terminal State
+  const [workerLogs, setWorkerLogs] = useState([]);
+  const [showTerminal, setShowTerminal] = useState(false);
 
   const showNotification = useCallback((msg, type = 'success') => {
     setNotification({ msg, type });
@@ -85,12 +90,15 @@ export default function App() {
       // In Vite, Web Workers are imported using ?worker
       const worker = new Worker(new URL('./services/enrichmentWorker.js', import.meta.url), { type: 'module' });
       worker.onmessage = (e) => {
-        if (e.data.type === 'SUCCESS') {
+        if (e.data.type === 'LOG') {
+          setWorkerLogs(prev => [...prev, e.data.message]);
+        } else if (e.data.type === 'SUCCESS') {
           resolve(e.data.batch);
+          worker.terminate();
         } else {
           reject(new Error(e.data.error || 'Worker failed'));
+          worker.terminate();
         }
-        worker.terminate();
       };
       worker.onerror = (err) => {
         reject(err);
@@ -118,6 +126,8 @@ export default function App() {
     const found = SAMPLE_DATASETS.find(d => d.id === datasetId);
     if (found) {
       setIsProcessing(true);
+      setShowTerminal(true);
+      setWorkerLogs([`INITIALIZING BATCH JOB: ${found.name}`]);
       try {
         const enriched = await processBatchWithWorker(found.items, customRules);
         const combined = [...enriched, ...records];
@@ -133,6 +143,8 @@ export default function App() {
 
   const handleBatchIngest = async (mappedItems) => {
     setIsProcessing(true);
+    setShowTerminal(true);
+    setWorkerLogs([`INITIALIZING CSV INGESTION JOB: ${mappedItems.length} items`]);
     try {
       const enriched = await processBatchWithWorker(mappedItems, customRules);
       const combined = [...enriched, ...records];
@@ -360,6 +372,14 @@ export default function App() {
           </div>
         </div>
       </footer>
+      
+      {showTerminal && (
+        <WorkerTerminal 
+          logs={workerLogs} 
+          onClose={() => setShowTerminal(false)} 
+          isProcessing={isProcessing} 
+        />
+      )}
     </div>
   );
 }

@@ -66,8 +66,16 @@ self.onmessage = (e) => {
     ].join('\n');
   }
 
-  const enrichedBatch = batch.map(item => {
+  self.postMessage({ type: 'LOG', message: `SPAWNING NLP WORKER THREAD... Processing batch of ${batch.length} items` });
+
+  const enrichedBatch = batch.map((item, idx) => {
     const text = (item.raw_input || '').trim();
+    
+    // Periodically emit logs so the terminal looks alive
+    if (idx % Math.max(1, Math.floor(batch.length / 20)) === 0) {
+      self.postMessage({ type: 'LOG', message: `Tokenizing & Classifying Chunk [${idx}/${batch.length}]...` });
+    }
+
     const synonymsResolved = resolveAllSynonyms(text);
     const { specs: extractedSpecs, details: specDetails } = extractSpecifications(text);
 
@@ -112,6 +120,11 @@ self.onmessage = (e) => {
     const validation = validateProductRecord(preValidationRecord);
     const auditLog = generateAuditLog({ item, synonymsResolved, specDetails, taxonResult, conversions, validation });
 
+    // Emit detailed log for individual items if batch is small, or occasionally for large batches
+    if (batch.length < 50 || idx % Math.max(1, Math.floor(batch.length / 5)) === 0) {
+       self.postMessage({ type: 'LOG', message: `PROCESSED: ${item.raw_id} -> ${taxon.code} | Q-SCORE: ${validation.score} | ${validation.status}` });
+    }
+
     return {
       ...preValidationRecord,
       Validation_Status: validation.status,
@@ -123,5 +136,6 @@ self.onmessage = (e) => {
     };
   });
 
+  self.postMessage({ type: 'LOG', message: `SUCCESS: Batch processing complete. Yielding back to main thread.` });
   self.postMessage({ type: 'SUCCESS', batch: enrichedBatch });
 };
