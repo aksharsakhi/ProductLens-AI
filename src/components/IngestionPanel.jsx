@@ -25,6 +25,7 @@ export default function IngestionPanel({ onIngestCustom, onBatchIngest }) {
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
+        worker: true, // Offloads parsing to a background thread
         complete: (results) => {
           try {
             const data = results.data.filter(row => Object.keys(row).length > 0);

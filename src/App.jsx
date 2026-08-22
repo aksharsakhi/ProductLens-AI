@@ -80,6 +80,26 @@ export default function App() {
     await saveRules(newRules);
   };
 
+  const processBatchWithWorker = (items, rules) => {
+    return new Promise((resolve, reject) => {
+      // In Vite, Web Workers are imported using ?worker
+      const worker = new Worker(new URL('./services/enrichmentWorker.js', import.meta.url), { type: 'module' });
+      worker.onmessage = (e) => {
+        if (e.data.type === 'SUCCESS') {
+          resolve(e.data.batch);
+        } else {
+          reject(new Error(e.data.error || 'Worker failed'));
+        }
+        worker.terminate();
+      };
+      worker.onerror = (err) => {
+        reject(err);
+        worker.terminate();
+      };
+      worker.postMessage({ batch: items, customRules: rules });
+    });
+  };
+
   const loadAllDatasets = async () => {
     const allItems = SAMPLE_DATASETS.flatMap(d => d.items);
     setIsProcessing(true);
@@ -99,7 +119,7 @@ export default function App() {
     if (found) {
       setIsProcessing(true);
       try {
-        const enriched = await processBatchCatalog(found.items, customRules);
+        const enriched = await processBatchWithWorker(found.items, customRules);
         const combined = [...enriched, ...records];
         await updateRecordsWithPersistence(combined);
         await appendAuditLog('LOAD_DATASET', currentUser?.name, `Loaded ${found.name}`);
@@ -114,11 +134,11 @@ export default function App() {
   const handleBatchIngest = async (mappedItems) => {
     setIsProcessing(true);
     try {
-      const enriched = await processBatchCatalog(mappedItems, customRules);
+      const enriched = await processBatchWithWorker(mappedItems, customRules);
       const combined = [...enriched, ...records];
       await updateRecordsWithPersistence(combined);
-      await appendAuditLog('CSV_UPLOAD', currentUser?.name, `Processed ${mappedItems.length} items from CSV`);
-      showNotification(`Successfully enriched ${mappedItems.length} products from CSV`);
+      await appendAuditLog('CSV_UPLOAD', currentUser?.name, `Processed ${mappedItems.length} items from CSV via Web Worker`);
+      showNotification(`Successfully enriched ${mappedItems.length} products from CSV (Worker Node)`);
     } catch (err) {
       showNotification(`Enrichment error: ${err.message}`, 'error');
     }

@@ -13,7 +13,9 @@ let _apiKey = '';
 let _enabled = false;
 let _requestCount = 0;
 let _lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL_MS = 200; // Rate limit: max 5 req/sec
+const MIN_REQUEST_INTERVAL_MS = 250; // Rate limit: max 4 req/sec to be safe
+const _cache = new Map();
+const MAX_CACHE_SIZE = 1000;
 
 /**
  * Configure the Gemini service.
@@ -40,12 +42,17 @@ async function callGemini(prompt, options = {}) {
     throw new Error('Gemini API not configured');
   }
 
-  // Rate limiting
-  const now = Date.now();
-  const elapsed = now - _lastRequestTime;
-  if (elapsed < MIN_REQUEST_INTERVAL_MS) {
-    await new Promise(r => setTimeout(r, MIN_REQUEST_INTERVAL_MS - elapsed));
+  // Check Cache First
+  const cacheKey = typeof prompt === 'string' ? prompt : JSON.stringify(prompt);
+  if (_cache.has(cacheKey)) {
+    return _cache.get(cacheKey);
   }
+
+  // Rate limiting Queue (Simple wait loop)
+  while (Date.now() - _lastRequestTime < MIN_REQUEST_INTERVAL_MS) {
+    await new Promise(r => setTimeout(r, 50));
+  }
+  _lastRequestTime = Date.now();
 
   const model = options.model || DEFAULT_MODEL;
   const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${_apiKey}`;
@@ -77,7 +84,19 @@ async function callGemini(prompt, options = {}) {
 
   const data = await response.json();
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  return text.trim();
+  const resultText = text.trim();
+
+  // Save to Cache
+  if (resultText && _cache.size < MAX_CACHE_SIZE) {
+    _cache.set(cacheKey, resultText);
+  } else if (_cache.size >= MAX_CACHE_SIZE) {
+    // Basic LRU eviction
+    const firstKey = _cache.keys().next().value;
+    _cache.delete(firstKey);
+    _cache.set(cacheKey, resultText);
+  }
+
+  return resultText;
 }
 
 /**
