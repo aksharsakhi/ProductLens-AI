@@ -1,7 +1,7 @@
 import React from 'react';
-import { Cpu, Sparkles, Layers, ShieldCheck, Download, LayoutGrid, Table, BarChart3, FolderTree } from 'lucide-react';
+import { Cpu, Sparkles, Layers, ShieldCheck, Download, LayoutGrid, Table, BarChart3, FolderTree, Sliders } from 'lucide-react';
 
-export default function Header({ viewMode, setViewMode, activeTab, setActiveTab, onExportClick, totalRecords, qualityScore }) {
+export default function Header({ viewMode, setViewMode, onExportClick, totalRecords, qualityScore }) {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-[#0b0f19]/90 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -75,6 +75,18 @@ export default function Header({ viewMode, setViewMode, activeTab, setActiveTab,
             >
               <FolderTree className="h-3.5 w-3.5" />
               <span>UNSPSC Codes</span>
+            </button>
+
+            <button
+              onClick={() => setViewMode('rules')}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                viewMode === 'rules'
+                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Sliders className="h-3.5 w-3.5" />
+              <span>Rule Configurator</span>
             </button>
           </div>
 

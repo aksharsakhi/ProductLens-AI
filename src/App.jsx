@@ -6,6 +6,7 @@ import ProductTable from './components/ProductTable';
 import ProductCardsView from './components/ProductCardsView';
 import AnalyticsView from './components/AnalyticsView';
 import TaxonomyBrowser from './components/TaxonomyBrowser';
+import RuleConfigurator from './components/RuleConfigurator';
 import ExplainabilityModal from './components/ExplainabilityModal';
 import ExportModal from './components/ExportModal';
 
@@ -13,10 +14,14 @@ import { SAMPLE_DATASETS } from './data/sampleDatasets';
 import { processBatchCatalog, enrichProductItem } from './services/aiEnrichmentEngine';
 
 export default function App() {
-  const [viewMode, setViewMode] = useState('table'); // 'table' | 'cards' | 'analytics' | 'taxonomy'
+  const [viewMode, setViewMode] = useState('table'); // 'table' | 'cards' | 'analytics' | 'taxonomy' | 'rules'
   const [records, setRecords] = useState([]);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [customRules, setCustomRules] = useState([
+    { id: '1', keyword: 'IP65', targetField: 'Enclosure Rating', targetValue: 'IP65 Weatherproof' },
+    { id: '2', keyword: 'NPT', targetField: 'Thread Standard', targetValue: 'ANSI/ASME B1.20.1 NPT' }
+  ]);
 
   // Initialize with default hydraulic dataset on load
   useEffect(() => {
@@ -26,13 +31,13 @@ export default function App() {
   const loadDataset = (datasetId) => {
     const found = SAMPLE_DATASETS.find(d => d.id === datasetId);
     if (found) {
-      const enriched = processBatchCatalog(found.items);
+      const enriched = processBatchCatalog(found.items, customRules);
       setRecords(enriched);
     }
   };
 
   const handleIngestCustomItem = (newItem) => {
-    const enrichedItem = enrichProductItem(newItem);
+    const enrichedItem = enrichProductItem(newItem, customRules);
     setRecords(prev => [enrichedItem, ...prev]);
   };
 
@@ -40,6 +45,18 @@ export default function App() {
     setRecords(prev => 
       prev.map(r => r.Product_ID === updatedRecord.Product_ID ? updatedRecord : r)
     );
+  };
+
+  const handleAddRule = (newRule) => {
+    setCustomRules(prev => [...prev, newRule]);
+  };
+
+  const handleDeleteRule = (ruleId) => {
+    setCustomRules(prev => prev.filter(r => r.id !== ruleId));
+  };
+
+  const handleApplyRules = () => {
+    setRecords(prev => prev.map(r => enrichProductItem(r._raw, customRules)));
   };
 
   // Calculate overall catalog quality score
@@ -126,6 +143,15 @@ export default function App() {
 
         {viewMode === 'taxonomy' && (
           <TaxonomyBrowser />
+        )}
+
+        {viewMode === 'rules' && (
+          <RuleConfigurator
+            customRules={customRules}
+            onAddRule={handleAddRule}
+            onDeleteRule={handleDeleteRule}
+            onApplyRules={handleApplyRules}
+          />
         )}
 
       </main>
