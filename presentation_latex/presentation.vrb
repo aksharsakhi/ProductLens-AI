@@ -1,0 +1,25 @@
+\frametitle{\textbf {Title Standardization \& Physics Unit Conversion}}
+\begin{columns}
+    \begin{column}{0.5\textwidth}
+      \begin{block}{\textbf{Raw Input Example}}
+        \small \texttt{"Brass solenoid valve 1/2 in NPT female 24VDC 150psi max temp 180F model SV-24V-05"}
+      \end{block}
+
+      \begin{block}{\textbf{Standardized E-Commerce Title}}
+        \small \textbf{FlowTech [SV-24V-05] 1/2" NPT Solenoid Valve (Brass, 24VDC, 150 PSI)}
+      \end{block}
+    \end{column}
+
+    \begin{column}{0.5\textwidth}
+      \begin{block}{\textbf{Automated Physics Conversions}}
+        \begin{itemize}
+          \item \textbf{Pressure}: $150\text{ PSI} \longrightarrow \mathbf{10.34\text{ Bar}}$
+          \item \textbf{Temperature}: $180^\circ\text{F} \longrightarrow \mathbf{82.2^\circ\text{C}}$
+          \item \textbf{Port Dimension}: $1/2\text{ inch} \longrightarrow \mathbf{12.7\text{ mm}}$
+        \end{itemize}
+      \end{block}
+      \begin{exampleblock}{\textbf{Standard UNSPSC Auto-Mapping}}
+        Mapped to \textbf{UNSPSC 40141602} (\emph{Solenoid Valves}) with 96.4\% confidence.
+      \end{exampleblock}
+    \end{column}
+  \end{columns}
