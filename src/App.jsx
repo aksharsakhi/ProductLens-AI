@@ -3,6 +3,9 @@ import Header from './components/Header';
 import DashboardMetrics from './components/DashboardMetrics';
 import IngestionPanel from './components/IngestionPanel';
 import ProductTable from './components/ProductTable';
+import ProductCardsView from './components/ProductCardsView';
+import AnalyticsView from './components/AnalyticsView';
+import TaxonomyBrowser from './components/TaxonomyBrowser';
 import ExplainabilityModal from './components/ExplainabilityModal';
 import ExportModal from './components/ExportModal';
 
@@ -10,7 +13,7 @@ import { SAMPLE_DATASETS } from './data/sampleDatasets';
 import { processBatchCatalog, enrichProductItem } from './services/aiEnrichmentEngine';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('catalog');
+  const [viewMode, setViewMode] = useState('table'); // 'table' | 'cards' | 'analytics' | 'taxonomy'
   const [records, setRecords] = useState([]);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -31,7 +34,6 @@ export default function App() {
   const handleIngestCustomItem = (newItem) => {
     const enrichedItem = enrichProductItem(newItem);
     setRecords(prev => [enrichedItem, ...prev]);
-    setActiveTab('catalog');
   };
 
   const handleUpdateRecord = (updatedRecord) => {
@@ -48,51 +50,83 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-[#080c14] text-slate-100 selection:bg-blue-600 selection:text-white">
       
-      {/* Top Header & Navigation */}
+      {/* Top Navigation Header */}
       <Header
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
         onExportClick={() => setShowExportModal(true)}
         totalRecords={records.length}
         qualityScore={avgQualityScore}
       />
 
       {/* Main Workspace Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         
-        {/* KPI Dashboard Metrics */}
-        <DashboardMetrics records={records} />
+        {/* KPI Dashboard Metrics (shown in studio & cards view) */}
+        {(viewMode === 'table' || viewMode === 'cards') && (
+          <DashboardMetrics records={records} />
+        )}
 
         {/* Multi-Source Ingestion Engine Component */}
-        <IngestionPanel
-          onLoadDataset={loadDataset}
-          onIngestCustomItem={handleIngestCustomItem}
-        />
-
-        {/* Main Product Table View */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-heading text-lg font-bold text-white flex items-center gap-2">
-              <span>Industrial E-Commerce Product Catalog</span>
-              <span className="text-xs font-normal text-slate-400 bg-slate-900 px-2.5 py-0.5 rounded-full border border-slate-800">
-                Live AI Output Workspace
-              </span>
-            </h2>
-
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="text-xs text-blue-400 hover:text-blue-300 font-medium underline underline-offset-4"
-            >
-              View Static Output Headers Spec
-            </button>
-          </div>
-
-          <ProductTable
-            records={records}
-            onSelectRecord={(rec) => setSelectedRecord(rec)}
-            onUpdateRecord={handleUpdateRecord}
+        {(viewMode === 'table' || viewMode === 'cards') && (
+          <IngestionPanel
+            onLoadDataset={loadDataset}
+            onIngestCustomItem={handleIngestCustomItem}
           />
-        </div>
+        )}
+
+        {/* Dynamic View Mode Renderer */}
+        {viewMode === 'table' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-heading text-lg font-bold text-white flex items-center gap-2">
+                <span>Industrial E-Commerce Product Catalog</span>
+                <span className="text-xs font-normal text-slate-400 bg-slate-900 px-2.5 py-0.5 rounded-full border border-slate-800">
+                  Studio Grid View
+                </span>
+              </h2>
+
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="text-xs text-blue-400 hover:text-blue-300 font-medium underline underline-offset-4"
+              >
+                Verify 15 Static Output Headers Spec
+              </button>
+            </div>
+
+            <ProductTable
+              records={records}
+              onSelectRecord={(rec) => setSelectedRecord(rec)}
+              onUpdateRecord={handleUpdateRecord}
+            />
+          </div>
+        )}
+
+        {viewMode === 'cards' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-heading text-lg font-bold text-white flex items-center gap-2">
+                <span>E-Commerce Visual Card Catalog</span>
+                <span className="text-xs font-normal text-slate-400 bg-slate-900 px-2.5 py-0.5 rounded-full border border-slate-800">
+                  Customer-Facing Layout
+                </span>
+              </h2>
+            </div>
+
+            <ProductCardsView
+              records={records}
+              onSelectRecord={(rec) => setSelectedRecord(rec)}
+            />
+          </div>
+        )}
+
+        {viewMode === 'analytics' && (
+          <AnalyticsView records={records} />
+        )}
+
+        {viewMode === 'taxonomy' && (
+          <TaxonomyBrowser />
+        )}
 
       </main>
 

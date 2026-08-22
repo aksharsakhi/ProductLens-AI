@@ -1,7 +1,7 @@
 import React from 'react';
-import { Cpu, Sparkles, Layers, ShieldCheck, Download, ExternalLink } from 'lucide-react';
+import { Cpu, Sparkles, Layers, ShieldCheck, Download, LayoutGrid, Table, BarChart3, FolderTree } from 'lucide-react';
 
-export default function Header({ activeTab, setActiveTab, onExportClick, totalRecords, qualityScore }) {
+export default function Header({ viewMode, setViewMode, activeTab, setActiveTab, onExportClick, totalRecords, qualityScore }) {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-[#0b0f19]/90 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -27,42 +27,54 @@ export default function Header({ activeTab, setActiveTab, onExportClick, totalRe
             </div>
           </div>
 
-          {/* Center Navigation Tabs */}
-          <div className="hidden md:flex items-center space-x-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+          {/* Navigation View Switcher */}
+          <div className="hidden lg:flex items-center space-x-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
             <button
-              onClick={() => setActiveTab('catalog')}
-              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                activeTab === 'catalog'
+              onClick={() => setViewMode('table')}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                viewMode === 'table'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
               }`}
             >
-              <Layers className="h-3.5 w-3.5" />
-              <span>Catalog Studio</span>
+              <Table className="h-3.5 w-3.5" />
+              <span>Studio Grid</span>
             </button>
 
             <button
-              onClick={() => setActiveTab('ingestion')}
-              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                activeTab === 'ingestion'
+              onClick={() => setViewMode('cards')}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                viewMode === 'cards'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
               }`}
             >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Data Ingestion & AI</span>
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span>E-Commerce Cards</span>
             </button>
 
             <button
-              onClick={() => setActiveTab('audit')}
-              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                activeTab === 'audit'
+              onClick={() => setViewMode('analytics')}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                viewMode === 'analytics'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
               }`}
             >
-              <ShieldCheck className="h-3.5 w-3.5" />
-              <span>Validation & Audit</span>
+              <BarChart3 className="h-3.5 w-3.5" />
+              <span>BI Analytics</span>
+            </button>
+
+            <button
+              onClick={() => setViewMode('taxonomy')}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                viewMode === 'taxonomy'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <FolderTree className="h-3.5 w-3.5" />
+              <span>UNSPSC Codes</span>
             </button>
           </div>
 
@@ -70,7 +82,7 @@ export default function Header({ activeTab, setActiveTab, onExportClick, totalRe
           <div className="flex items-center space-x-3">
             <div className="hidden sm:flex flex-col items-end mr-2 text-right">
               <span className="text-[11px] text-slate-400 font-mono">
-                {totalRecords} Products Loaded
+                {totalRecords} Products Ingested
               </span>
               <span className="text-[11px] text-emerald-400 font-medium">
                 {qualityScore}% Quality Score
