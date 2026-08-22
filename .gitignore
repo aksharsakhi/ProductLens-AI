@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build Output
+dist/
+build/
+*.pdf.log
+
+# System & IDE
+.DS_Store
+*.log
+.vscode/
+.idea/
